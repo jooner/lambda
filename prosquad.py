@@ -178,22 +178,22 @@ def process(dataset, version):
   return corpus
 
 
-
-def main():
-  pwd = os.getcwd()
+def initiate_process(data_dir, data_type):
+  """
   parser = argparse.ArgumentParser()
   parser.add_argument('-d', '--data_type', default='dev')
   parser.add_argument('-v', '--version', default='1.1')
   args = parser.parse_args()
   fpath = os.path.join(pwd, args.data_type + '-v' + args.version +'.json')
+  """
+  if data_type == 'valid':
+    data_type = 'dev'
+
+  pwd = os.getcwd()
+  fpath = os.path.join(pwd, data_dir)
+  fpath = os.path.join(fpath, data_type + '-v1.1.json')
   with io.open(fpath, 'r', encoding='utf-8') as f:
     dataset = json.load(f)
   # corpus object with all preprocessing configured
-  corpus = process(dataset, args.version)
+  corpus = process(dataset, '1.1')
   return corpus
-  
-
-
-
-if __name__ == "__main__":
-  main()

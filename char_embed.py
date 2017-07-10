@@ -25,14 +25,6 @@ import numpy as np
 
 import prosquad
 
-# TODO: these should all be inputs through an argparse argument
-MAX_WORD_LENGTH = 60
-# number of sequences to train in parallel
-BATCH_SIZE = 20
-# number of timesteps to unroll for (num of words read each time)
-NUM_UNROLL_STEPS = 35
-EOS = '.'
-
 class Vocab:
 
   def __init__(self):
@@ -90,7 +82,7 @@ class DataReader:
     word_tensor = word_tensor[:reduced_length]
     char_tensor = char_tensor[:reduced_length, :]
 
-    # rotate s.t. first el. is last
+    # rotate so y is indexed to next word
     ydata = np.zeros_like(word_tensor)
     ydata[:-1] = word_tensor[1:].copy()
     ydata[-1] = word_tensor[0].copy()
@@ -114,7 +106,7 @@ class DataReader:
       yield x, y
 
 
-def load_data(data_dir, max_word_length, eos='.'):
+def load_data(data_dir, data_type, max_word_length, eos='.'):
 
   char_vocab = Vocab()
   char_vocab.feed(' ')  # blank is at index 0 in char vocab
@@ -131,10 +123,12 @@ def load_data(data_dir, max_word_length, eos='.'):
   char_tokens = []
 
   # output context corpus into a txt file
-  corpus = prosquad.main()
+  corpus = prosquad.initiate_process(data_dir, data_type)
   contexts = corpus.contexts # list of list of strings
   # flatten into list of context strings
   contexts = [item for sublist in contexts for item in sublist]
+  # abridge because it's too big for GPU
+  # contexts = contexts[:(len(contexts) * 5 // 10)]
   # make into a single string
   contexts = (" ".join(contexts)).lower()
   # access corpus word by word
@@ -168,23 +162,3 @@ def load_data(data_dir, max_word_length, eos='.'):
     char_tensors[i,:len(char_array)] = char_array # number of rows is words, column is char
 
   return word_vocab, char_vocab, word_tensors, char_tensors, actual_max_word_length
-
-
-
-def main():
-  """Embeds data for training"""
-
-  if not os.path.exists('data'):
-    os.mkdir('data')
-    print('Created training directory', 'data')
-
-  word_vocab, char_vocab, word_tensors, char_tensors, max_word_length = load_data('data',
-                                                                                   MAX_WORD_LENGTH,
-                                                                                   eos=EOS)
-  reader = DataReader(word_tensors, char_tensors, BATCH_SIZE, NUM_UNROLL_STEPS)
-  print("initialized dataset")
-  return reader
-
-if __name__ == '__main__':
-  main()
-
