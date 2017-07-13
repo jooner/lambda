@@ -68,7 +68,7 @@ def combine(corpus):
   combanswers = {}
   num_topics = corpus.getLength('contexts')
   for i in xrange(num_topics):
-    print("Combining Contexts/Q&As for {}...".format(corpus.getTitle(i)))
+    # print("Combining Contexts/Q&As for {}...".format(corpus.getTitle(i)))
     combcontexts.append([])
     title = corpus.getTitle(i)
     # create a copy to replace corpus.questions
@@ -186,14 +186,25 @@ def initiate_process(data_dir, data_type):
   args = parser.parse_args()
   fpath = os.path.join(pwd, args.data_type + '-v' + args.version +'.json')
   """
-  if data_type == 'valid':
-    data_type = 'dev'
+  if data_type != 'test.txt':
+    if data_type == 'valid':
+      data_type = 'dev'
 
-  pwd = os.getcwd()
-  fpath = os.path.join(pwd, data_dir)
-  fpath = os.path.join(fpath, data_type + '-v1.1.json')
-  with io.open(fpath, 'r', encoding='utf-8') as f:
-    dataset = json.load(f)
-  # corpus object with all preprocessing configured
-  corpus = process(dataset, '1.1')
+    pwd = os.getcwd()
+    fpath = os.path.join(pwd, data_dir)
+    fpath = os.path.join(fpath, data_type + '-v1.1.json')
+
+    with io.open(fpath, 'r', encoding='utf-8') as f:
+      dataset = json.load(f)
+    # corpus object with all preprocessing configured
+    corpus = process(dataset, '1.1')
+
+  # temporary testing
+  else:
+    fpath = os.path.join(pwd, data_dir)
+    fpath = os.path.join(fpath, data_type)
+    corpus = Corpus()
+    with io.open(fpath, 'r', encoding='utf-8') as f:
+      corpus.contexts = [[line] for line in f]
+
   return corpus

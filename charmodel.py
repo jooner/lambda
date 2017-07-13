@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Code adopted from https://github.com/mkroutikov/tf-lstm-char-cnn/
+Original code adopted from https://github.com/mkroutikov/tf-lstm-char-cnn/
 
 """
 
@@ -45,7 +45,7 @@ def linear(input_, output_size, scope=None):
     sum_i(args[i] * W[i]), where W[i]s are newly created matrices.
   Raises:
     ValueError: if some of the arguments has unspecified or wrong shape.
-  """
+	"""
   # Check input shapes
   shape = input_.get_shape().as_list()
   if len(shape) != 2:
@@ -55,9 +55,15 @@ def linear(input_, output_size, scope=None):
   input_size = shape[1]
 
   # Now the computation.
-  with tf.variable_scope(scope or "SimpleLinear"):
-    matrix = tf.get_variable("Matrix", [output_size, input_size], dtype=input_.dtype)
-    bias_term = tf.get_variable("Bias", [output_size], dtype=input_.dtype)
+  if scope == "ReduceSizeFF":
+    with tf.variable_scope(scope):
+      matrix = tf.get_variable("FFMatrix", [output_size, input_size], dtype=input_.dtype)
+      bias_term = tf.get_variable("FFBias", [output_size], dtype=input_.dtype)
+
+  else:
+    with tf.variable_scope(scope or "SimpleLinear"):
+      matrix = tf.get_variable("Matrix", [output_size, input_size], dtype=input_.dtype)
+      bias_term = tf.get_variable("Bias", [output_size], dtype=input_.dtype)
 
   return tf.matmul(input_, tf.transpose(matrix)) + bias_term
 
@@ -81,10 +87,10 @@ def highway(input_, size, num_layers=1, bias=-2.0, f=tf.nn.relu, scope='Highway'
 def tdnn(input_, kernels, kernel_features, scope='TDNN'):
   """
   Args:
-    input: input float tensor of shape
-    [(batch_size*num_unroll_steps) x max_word_length x embed_size]
-    kernels: array of kernel sizes
-    kernel_features: array of kernel feature sizes (parallel to kernels)
+  	input: input float tensor of shape
+  	[(batch_size*num_unroll_steps) x max_word_length x embed_size]
+  	kernels: array of kernel sizes
+  	kernel_features: array of kernel feature sizes (parallel to kernels)
   """
   assert len(kernels) == len(kernel_features), 'Kernel and Features must have the same size'
 
@@ -114,12 +120,11 @@ def tdnn(input_, kernels, kernel_features, scope='TDNN'):
 
   return output
 
-
 def inference_graph(char_vocab_size, word_vocab_size, char_embed_size=15,
                     batch_size=20, num_highway_layers=2, num_rnn_layers=2,
-                    rnn_size=650, max_word_length=65, kernels=[ 1,2,3,4,5,6,7],
+                    rnn_size=500, max_word_length=65, kernels=[1,2,3,4,5,6,7],
                     kernel_features = [50, 100, 150, 200, 200, 200, 200],
-                    num_unroll_steps=35, dropout=0.0):
+                    num_unroll_steps=30, dropout=0.0):
 
   """ Where the heavy combination lifting happens """
   assert len(kernels) == len(kernel_features)
@@ -129,12 +134,6 @@ def inference_graph(char_vocab_size, word_vocab_size, char_embed_size=15,
   with tf.variable_scope('Embedding'):
     char_embedding = tf.get_variable('char_embedding', [char_vocab_size, char_embed_size])
 
-    # this op clears embedding vector of first symbol
-    # (symbol at position 0, which is by convention the position of the padding symbol). 
-    # It can be used to mimic Torch7 embedding operator that keeps padding mapped to
-    # zero embedding vector and ignores gradient updates. For that do the following in TF:
-    # 1. after parameter initialization, apply this op to zero out padding embedding vector
-    # 2. after each gradient update, apply this op to keep padding at zero'''
     clear_char_embedding_padding = tf.scatter_update(char_embedding, [0],
                                                      tf.constant(0.0, shape=[1, char_embed_size]))
     # [batch_size x max_word_length, num_unroll_steps, char_embed_size]
@@ -144,6 +143,14 @@ def inference_graph(char_vocab_size, word_vocab_size, char_embed_size=15,
   # Second, apply convolutions
   # [batch_size x num_unroll_steps, cnn_size]  # where cnn_size=sum(kernel_features)
   input_cnn = tdnn(input_embedded, kernels, kernel_features)
+  # reduce dimensions from (1100 -> 15)
+  input_cnn = linear(input_cnn, char_embed_size, scope="ReduceSizeFF")
+  # for char embedding use
+  output_cnn = input_cnn
+
+  # debugging util
+  stats = []
+  stats.append(tf.reduce_mean(input_cnn))
 
   # Third, apply Highway if needed
   if num_highway_layers > 0:
@@ -172,6 +179,8 @@ def inference_graph(char_vocab_size, word_vocab_size, char_embed_size=15,
                                                          initial_state=initial_rnn_state,
                                                          dtype=tf.float32)
 
+    stats.append(tf.reduce_mean(input_cnn))
+
     # linear projection onto output (word) vocab
     logits = []
     with tf.variable_scope('WordEmbedding') as scope:
@@ -181,9 +190,9 @@ def inference_graph(char_vocab_size, word_vocab_size, char_embed_size=15,
         logits.append(linear(output, word_vocab_size))
 
   return adict(input=input_, clear_char_embedding_padding=clear_char_embedding_padding,
-               input_embedded=input_embedded, input_cnn=input_cnn,
+               input_embedded=input_embedded, input_cnn=input_cnn, output_cnn=output_cnn,
                initial_rnn_state=initial_rnn_state, final_rnn_state=final_rnn_state,
-               rnn_outputs=outputs, logits = logits)
+               rnn_outputs=outputs, logits=logits, stats=stats)
 
 
 def loss_graph(logits, batch_size, num_unroll_steps):
@@ -200,7 +209,7 @@ def training_graph(loss, learning_rate=1.0, max_grad_norm=5.0):
   """ Build training graph """
   global_step = tf.Variable(0, name='global_step', trainable=False)
 
-  with tf.variable_scope('SGD_Training'):
+  with tf.variable_scope('Adam_Training'): #'SGD_Training'
     # SGD learning parameter
     learning_rate = tf.Variable(learning_rate, trainable=False, name='learning_rate')
 
@@ -208,8 +217,11 @@ def training_graph(loss, learning_rate=1.0, max_grad_norm=5.0):
     tvars = tf.trainable_variables()
     grads, global_norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), max_grad_norm)
 
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-    train_op = optimizer.apply_gradients(zip(grads, tvars), global_step=global_step)
+    #optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+    
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+    #train_op = optimizer.apply_gradients(zip(grads, tvars), global_step=global_step)
+    train_op = optimizer.apply_gradients(zip(grads, tvars))
 
   return adict(learning_rate=learning_rate, global_step=global_step,
                global_norm=global_norm, train_op=train_op)
