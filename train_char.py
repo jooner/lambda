@@ -22,11 +22,11 @@ import charmodel as model
 flags = tf.flags
 
 flags.DEFINE_string('data_dir', 'data', 'data directory. Should contain train.txt/valid.txt/test.txt with input data')
-flags.DEFINE_string('train_dir', 'models2', 'training directory (models and summaries are saved there periodically)')
+flags.DEFINE_string('train_dir', 'cv', 'training directory (models and summaries are saved there periodically)')
 
-flags.DEFINE_integer('rnn_size',  650, 'size of LSTM internal state')
+flags.DEFINE_integer('rnn_size',  500, 'size of LSTM internal state')
 flags.DEFINE_integer('rnn_layers', 2, 'number of layers in the LSTM')
-flags.DEFINE_integer('highway_layers', 2, 'number of highway layers')
+flags.DEFINE_integer('highway_layers', 1, 'number of highway layers')
 
 flags.DEFINE_integer('batch_size', 128, 'number of sequences to train on in parallel')
 flags.DEFINE_integer('char_embed_size', 15, 'dimensionality of character embeddings')
@@ -42,14 +42,14 @@ flags.DEFINE_float('dropout', 0.5, 'dropout. 0 = no dropout')
 
 flags.DEFINE_integer('num_unroll_steps', 30, 'number of timesteps to unroll for')
 flags.DEFINE_float('max_grad_norm', 5.0, 'normalize gradients at')
-flags.DEFINE_integer('max_epochs', 10, 'number of full passes through the training data')
+flags.DEFINE_integer('max_epochs', 50, 'number of full passes through the training data')
 flags.DEFINE_integer('max_word_length', 65, 'maximum word length')
 
-flags.DEFINE_float('learning_rate', 1.0, 'starting learning rate')
+flags.DEFINE_float('learning_rate', 0.001, 'starting learning rate')
 
 
-flags.DEFINE_float('learning_rate_decay', 0.5, 'learning rate decay')
-flags.DEFINE_float('decay_when', 0.5, 'decay if validation perplexity does not improve by more than this much')
+#flags.DEFINE_float('learning_rate_decay', 0.5, 'learning rate decay')
+#flags.DEFINE_float('decay_when', 1.0, 'decay if validation perplexity does not improve by more than this much')
 flags.DEFINE_string('load_model', None, '(optional) Useful for re-starting training from a checkpoint')
 flags.DEFINE_string('EOS', '.', '<EOS> symbol.')
 
@@ -71,12 +71,11 @@ def main(_):
                                                                                         FLAGS.max_word_length,
                                                                                         FLAGS.EOS)
   _, _, va_word_tensors, va_char_tensors, _ = load_data(FLAGS.data_dir, 'valid',
-                                                        FLAGS.max_word_length, FLAGS.EOS,
-                                                        char_vocab=char_vocab, word_vocab=word_vocab)
+                                                        FLAGS.max_word_length, FLAGS.EOS)
 
   train_reader = DataReader(tr_word_tensors, tr_char_tensors, FLAGS.batch_size, FLAGS.num_unroll_steps)
-  valid_reader = DataReader(va_word_tensors, va_char_tensors, FLAGS.batch_size, FLAGS.num_unroll_steps)
-
+  valid_reader = DataReader(va_word_tensors, va_char_tensors, FLAGS.batch_size, FLAGS.num_unroll_steps)  
+  
   with tf.Graph().as_default(), tf.Session() as session:
     # tensorflow seed must be inside graph
     tf.set_random_seed(FLAGS.seed)
@@ -166,15 +165,15 @@ def main(_):
         avg_train_loss += 0.05 * (loss - avg_train_loss)
 
         time_elapsed = time.time() - start_time
-
+        
         if count % FLAGS.print_every == 0:
-          print('%4d: %4d [%5d/%5d], train_loss/perplexity = %6.8f/%6.7f secs/batch = %.4fs, grad.norm=%6.8f' % (step,
+          print('%d: %d [%5d/%5d], train_loss/perplexity = %6.8f/%6.7f secs/batch = %.4fs, grad.norm=%6.8f' % (step,
                                                   epoch, count,
                                                   train_reader.length,
                                                   loss, np.exp(loss),
                                                   time_elapsed,
                                                   gradient_norm))
-          print("TRAIN STATS: {} || {}".format(tr_stats[0],tr_stats[1]))
+          print("TRAIN STATS: \n {} \n {}".format(tr_stats[0],tr_stats[1]))
 
       print('Epoch training time:', time.time()-epoch_start_time)
 
@@ -199,7 +198,7 @@ def main(_):
         if count % FLAGS.print_every == 0:
             print("\t> validation loss = %6.8f, perplexity = %6.8f" % (loss, np.exp(loss)))
             # stat sanity check
-            print("VALID STATS: \n {} \n {}".format(va_stats[0],va_stats[1]))
+            print("VALID STATS: \n {} \n {}".format(va_stats[0],va_stats[1]))   
         avg_valid_loss += loss / valid_reader.length
 
       # evaluation over, report
@@ -216,13 +215,13 @@ def main(_):
                                   tf.Summary.Value(tag="valid_loss", simple_value=avg_valid_loss)])
       summary_writer.add_summary(summary, step)
 
+      """
       # decay learning rate if needed
       if best_valid_loss is not None and np.exp(avg_valid_loss) > np.exp(best_valid_loss) - FLAGS.decay_when:
         print('validation perplexity did not improve enough, decay learning rate')
         current_learning_rate = session.run(train_model.learning_rate)
         print('learning rate was:', current_learning_rate)
         current_learning_rate *= FLAGS.learning_rate_decay
-        print('new learning rate:', current_learning_rate)
         if current_learning_rate < 1.e-5:
           print('learning rate too small - stopping now...')
           break
@@ -231,6 +230,7 @@ def main(_):
         print('new learning rate is:', current_learning_rate)
       else:
         best_valid_loss = avg_valid_loss
+      """
 
 
 if __name__ == '__main__':

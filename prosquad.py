@@ -13,7 +13,6 @@ from __future__ import print_function
 import os
 import io
 import json
-import cPickle as pickle
 
 import argparse
 
@@ -178,9 +177,6 @@ def process(dataset, version):
 
   return corpus
 
-def save_object(obj, filename):
-  with open(filename, 'wb') as output:
-    pickle.dump(obj, output, -1)
 
 def initiate_process(data_dir, data_type):
   """
@@ -202,7 +198,6 @@ def initiate_process(data_dir, data_type):
       dataset = json.load(f)
     # corpus object with all preprocessing configured
     corpus = process(dataset, '1.1')
-    # save_object(corpus, os.path.join(pwd, "SquadObject.pkl"))
 
   # temporary testing
   else:
