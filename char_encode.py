@@ -92,30 +92,6 @@ def main(_input):
 
     # run RNN
     rnn_state = session.run(m.initial_rnn_state)
-    """
-    logits = np.ones((word_vocab.size,))
-
-    _, _, word_tensors, char_tensors, _ = load_data(FLAGS.data_dir, 'test.txt', FLAGS.max_word_length, FLAGS.EOS)
-    for i in range(FLAGS.num_samples):
-      logits = logits / FLAGS.temperature
-      prob = np.exp(logits)
-      prob /= np.sum(prob)
-      prob = prob.ravel()
-      idx = np.random.choice(range(len(prob)), p=prob)
-      word = word_vocab.token(idx)
-      if word == '.':
-        print("<unk> {}".format(word), end=' ')
-      else:
-        print(word, end=' ')
-      char_input = np.zeros((1,1,max_word_length))
-
-      for i, c in enumerate('{' + word + '}'):
-        char_input[0,0,i] = char_vocab[c]
-      logits, rnn_state = session.run([m.logits, m.final_rnn_state],
-                                      {m.input: char_input, m.initial_rnn_state: rnn_state})
-      logits = np.array(logits)
-    char_input
-    """
 
     # testing
     k = []
@@ -126,7 +102,7 @@ def main(_input):
       output = session.run([m.output_cnn], {m.input: char_input, m.initial_rnn_state: rnn_state})
       k.append(list(output[0]))
   return k
-      
+
 
 if __name__ == '__main__':
   tf.app.run()
