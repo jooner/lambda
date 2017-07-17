@@ -106,16 +106,21 @@ class DataReader:
       yield x, y
 
 
-def load_data(data_dir, data_type, max_word_length, eos='.'):
+def load_data(data_dir, data_type, max_word_length, eos='.',
+              char_vocab=None, word_vocab=None):
 
-  char_vocab = Vocab()
-  char_vocab.feed(' ')  # blank is at index 0 in char vocab
-  char_vocab.feed('{')  # start is at index 1 in char vocab
-  char_vocab.feed('}')  # end   is at index 2 in char vocab
-  char_vocab.feed(eos)  # eos   is at index 3 in char vocab
+  if not (char_vocab and word_vocab):
+    char_vocab = Vocab()
+    char_vocab.feed(' ')  # blank is at index 0 in char vocab
+    char_vocab.feed('{')  # start is at index 1 in char vocab
+    char_vocab.feed('}')  # end   is at index 2 in char vocab
+    char_vocab.feed(eos)  # eos   is at index 3 in char vocab
 
-  word_vocab = Vocab()
-  word_vocab.feed(eos) # eos is at index 0 in word vocab
+    word_vocab = Vocab()
+    word_vocab.feed(eos) # eos is at index 0 in word vocab
+  else:
+    char_vocab = char_vocab
+    word_vocab = word_vocab
 
   actual_max_word_length = 0
 
@@ -127,8 +132,8 @@ def load_data(data_dir, data_type, max_word_length, eos='.'):
   contexts = corpus.contexts # list of list of strings
   # flatten into list of context strings
   contexts = [item for sublist in contexts for item in sublist]
-  # abridge because it's too big for GPU
-  # contexts = contexts[:(len(contexts) * 5 // 10)]
+  # for faster running time
+  # contexts = contexts[:(len(contexts) * 1 // 10)]
   # make into a single string
   contexts = (" ".join(contexts)).lower()
   # access corpus word by word
@@ -151,11 +156,14 @@ def load_data(data_dir, data_type, max_word_length, eos='.'):
   print('actual longest token length is:', actual_max_word_length)
   print('size of word vocabulary:', word_vocab.size)
   print('size of char vocabulary:', char_vocab.size)
+  print('size of word token:', len(word_tokens))
 
   # now we know the sizes, create tensors
   assert len(char_tokens) == len(word_tokens)
 
   word_tensors = np.array(word_tokens, dtype=np.int32)
+  if char_vocab != None: # use training stage's max_word_length
+      actual_max_word_length = max_word_length
   char_tensors = np.zeros([len(char_tokens), actual_max_word_length], dtype=np.int32)
 
   for i, char_array in enumerate(char_tokens):
