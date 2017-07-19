@@ -8,15 +8,15 @@ import numpy as np
 import io
 import os
 
-import numpy as nop
-import char_encode
+import numpy as np
+from char_encode import encode_character
 
 
 WORD_EMBEDDING = 50
 
 def word_encode(glove_dir, glove_corpus, glove_vec_size):
   """
-  Returns a dictionary that can tokenize words 
+  Returns a dictionary that can tokenize words
   """
   glove_path = os.path.join(glove_dir, "glove.{}.{}d.txt".format(glove_corpus, glove_vec_size))
   sizes = {'6B': int(4e5), '42B': int(1.9e6), '840B': int(2.2e6), '2B': int(1.2e6)}
@@ -39,7 +39,7 @@ def word_encode(glove_dir, glove_corpus, glove_vec_size):
 
 
 
-def main():
+def word_char_concat(txt, corpus=None):
   pwd = os.path.expanduser(".")
   glove_dir = os.path.join(pwd, "data/GloVe-1.2/glove.6B")
 
@@ -47,8 +47,6 @@ def main():
   print("GloVe Encoding in Progress...")
   w2v, v2w = word_encode(glove_dir, "6B", WORD_EMBEDDING)
   fp = os.path.join("data", "test.txt")
-  with io.open(fp, 'r', encoding='utf-8') as f:
-    txt = f.readline().lower().split()
 
   word_embed = []
   for w in txt:
@@ -60,7 +58,7 @@ def main():
 
 
   print("Character Encoding in Progress...")
-  char_embedded = char_encode.main(txt)
+  char_embedded = encode_character(txt, corpus)
 
   assert len(word_embed) == len(char_embedded)
 
@@ -69,7 +67,11 @@ def main():
   for i, e in enumerate(word_embed):
     word_char_embed.append(np.append(e, char_embedded[i]))
 
-  return word_char_embed
+  return np.asarray(word_char_embed, dtype=np.float32)
+
+
+def main():
+  return concat(input_txt)
 
 if __name__ == '__main__':
   main()

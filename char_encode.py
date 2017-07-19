@@ -27,10 +27,10 @@ import charmodel as model
 
 flags = tf.flags
 
-flags.DEFINE_string('load_model', None, '(optional) Useful for re-starting training from a checkpoint')
+flags.DEFINE_string('load_model', 'models/epoch19_7.0583.model', '(optional) Useful for re-starting training from a checkpoint')
 
 flags.DEFINE_integer('num_samples', 3, 'how many words to generate')
-flags.DEFINE_string('seed', 3435, 'random number generator seed')
+flags.DEFINE_string('seed', 1004, 'random number generator seed')
 flags.DEFINE_string('EOS', '.', '<EOS> symbol.')
 
 
@@ -50,7 +50,7 @@ flags.DEFINE_integer('max_word_length', 65, 'maximum word length')
 
 FLAGS = flags.FLAGS
 
-def main(_input):
+def encode_character(_input, corpus=None):
   """Encode given text"""
   if FLAGS.load_model is None:
     print("Specify checkpoint file to load model from!")
@@ -63,8 +63,8 @@ def main(_input):
   word_vocab, char_vocab, tr_word_tensors, tr_char_tensors, max_word_length = load_data(FLAGS.data_dir,
                                                                                         'train',
                                                                                         FLAGS.max_word_length,
-                                                                                        FLAGS.EOS)
-  print('initialized test dataset reader')
+                                                                                        FLAGS.EOS, corpus=corpus)
+  print('Initialized test dataset reader')
   with tf.Graph().as_default(), tf.Session() as session:
     # tensorflow seed must be inside graph
     tf.set_random_seed(FLAGS.seed)
@@ -86,10 +86,11 @@ def main(_input):
 
     # we need global step only because we want to read it from the model
     # global_step = tf.Variable(0, dtype=tf.int32, name='global_step')
-    saver = tf.train.Saver()
+    saver = tf.train.import_meta_graph(FLAGS.load_model + '.meta')
+    print("Loading trained model...")
     saver.restore(session, FLAGS.load_model)
     # print("Loaded model from", FLAGS.load_model, 'saved at global step', global_step.eval())
-
+    tf.global_variables_initializer().run()
     # run RNN
     rnn_state = session.run(m.initial_rnn_state)
 
@@ -103,6 +104,8 @@ def main(_input):
       k.append(list(output[0]))
   return k
 
+def main():
+  encode_character(_input)
 
 if __name__ == '__main__':
   tf.app.run()
